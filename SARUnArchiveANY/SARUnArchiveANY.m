@@ -139,23 +139,23 @@
 }
 
 - (void)decompress7z{
-    NSString *tmpDirname = @"Extract 7z";    
-    _destinationPath = [_destinationPath stringByAppendingPathComponent:tmpDirname];
+//    NSString *tmpDirname = @"Extract 7z";
+//    _destinationPath = [_destinationPath stringByAppendingPathComponent:tmpDirname];
     NSLog(@"_filePath: %@", _filePath);
     NSLog(@"_destinationPath: %@", _destinationPath);
     
 //    LzmaSDKObjCReader *reader = [[LzmaSDKObjCReader alloc] initWithFileURL:[NSURL fileURLWithPath:_filePath]];
     // 1.2 Or create with predefined archive type if path doesn't containes suitable extension
-    LzmaSDKObjCReader *reader = [[LzmaSDKObjCReader alloc] initWithFileURL:[NSURL fileURLWithPath:_filePath] andType:LzmaSDKObjCFileType7z];
+    _reader = [[LzmaSDKObjCReader alloc] initWithFileURL:[NSURL fileURLWithPath:_filePath] andType:LzmaSDKObjCFileType7z];
     
 //    // Optionaly: assign weak delegate for tracking extract progress.
-//    reader.delegate = self;
+    _reader.delegate = self;
     
     // If achive encrypted - define password getter handler.
     // NOTES:
     // - Encrypted file needs password for extract process.
     // - Encrypted file with encrypted header needs password for list(iterate) and extract archive items.
-    reader.passwordGetter = ^NSString*(void){
+    _reader.passwordGetter = ^NSString*(void){
 //        return @"password to my achive";
         NSLog(@"self.password: %@", self.password);
         return self.password;
@@ -163,16 +163,16 @@
     
     // Open archive, with or without error. Error can be nil.
     NSError * error = nil;
-    if (![reader open:&error]) {
+    if (![_reader open:&error]) {
         NSLog(@"Open error: %@", error);
     }
-    NSLog(@"Open error: %@", reader.lastError);
+    NSLog(@"Open error: %@", _reader.lastError);
     
     NSMutableArray *filePathsArray = [NSMutableArray array];
 
     NSMutableArray * items = [NSMutableArray array]; // Array with selected items.
     // Iterate all archive items, track what items do you need & hold them in array.
-    [reader iterateWithHandler:^BOOL(LzmaSDKObjCItem * item, NSError * error){
+    [_reader iterateWithHandler:^BOOL(LzmaSDKObjCItem * item, NSError * error){
 //        NSLog(@"\nitem:%@", item);
         if (item) {
             [items addObject:item]; // if needs this item - store to array.
@@ -184,20 +184,20 @@
         }
         return YES; // YES - continue iterate, NO - stop iteration
     }];
-    NSLog(@"Iteration error: %@", reader.lastError);
+    NSLog(@"Iteration error: %@", _reader.lastError);
     
     // Extract selected items from prev. step.
     // YES - create subfolders structure for the items.
     // NO - place item file to the root of path(in this case items with the same names will be overwrited automaticaly).
-    [reader extract:items
+    [_reader extract:items
               toPath:_destinationPath
        withFullPaths:YES];
-    NSLog(@"Extract error: %@", reader.lastError);
+    NSLog(@"Extract error: %@", _reader.lastError);
     
     // Test selected items from prev. step.
-    [reader test:items];
-    NSLog(@"test error: %@", reader.lastError);
-    if (reader.lastError || ![filePathsArray count]) {
+    [_reader test:items];
+    NSLog(@"test error: %@", _reader.lastError);
+    if (_reader.lastError || ![filePathsArray count]) {
         failureBlock();
     }
     else {
@@ -213,6 +213,12 @@
     completionBlock(filePaths);
 }
 
+#pragma mark - LzmaSDKObjCReaderDelegate
+- (void)onLzmaSDKObjCReader:(LzmaSDKObjCReader *)reader extractProgress:(float)progress {
+    if (self.progress7zBlock) {
+        self.progress7zBlock(progress);
+    }
+}
 
 #pragma mark - Utility Methods
 - (NSString *) applicationDocumentsDirectory
